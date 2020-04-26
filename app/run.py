@@ -54,7 +54,7 @@ def multioutput_fscore(y_true,y_pred,beta=1):
 
 
 # load data
-engine = create_engine('sqlite:///../disaster_response.db')
+engine = create_engine('sqlite:///../data/disaster_response.db')
 df = pd.read_sql_table("messages", engine)
 X = df['message']
 Y = df.iloc[:,4:]
@@ -62,7 +62,7 @@ Y = df.iloc[:,4:]
 print(df.head())
 
 # load model
-model = joblib.load('../cvModel1.pkl')
+model = joblib.load('../models/classifier.pkl')
 print(model)
 
 X = df['message']

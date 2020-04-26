@@ -35,7 +35,7 @@ from sklearn.externals import joblib
 
 
 # load data from database
-engine = create_engine('sqlite:///disaster_response.db')
+engine = create_engine('sqlite:///../data/disaster_response.db')
 df = pd.read_sql_table("messages", engine)
 X = df['message']
 Y = df.iloc[:,4:]
@@ -65,6 +65,7 @@ def tokenize(text):
     return clean_tokens
 
 
+
 #Pipeline
 pipeline = Pipeline([
         ('vect', CountVectorizer(tokenizer=tokenize)),
@@ -73,7 +74,6 @@ pipeline = Pipeline([
     ])
 
 X_train, X_test, y_train, y_test = train_test_split(X, Y)
-
 pipeline.fit(X_train, y_train)
 
 
@@ -95,6 +95,10 @@ class StartingVerbExtractor(BaseEstimator, TransformerMixin):
         X_tagged = pd.Series(X).apply(self.starting_verb)
         return pd.DataFrame(X_tagged)
 
+
+
+
+
 def display_results(y_test, y_train):
     labels = np.unique(y_train)
     confusion_mat = confusion_matrix(y_test, y_train, labels=labels)
@@ -105,6 +109,8 @@ def display_results(y_test, y_train):
     print("Accuracy:", accuracy)
 
 
+
+
 y_pred = pipeline.predict(X_test)
 
 y_pred_pd = pd.DataFrame(y_pred, columns = y_test.columns)
@@ -112,6 +118,9 @@ for column in y_test.columns:
     print('------------------------------------------------------\n')
     print('FEATURE: {}\n'.format(column))
     print(classification_report(y_test[column],y_pred_pd[column]))
+
+
+
 
 
 class StartingVerbExtractor(BaseEstimator, TransformerMixin):
@@ -141,14 +150,16 @@ def new_model_pipeline():
                 ('vect', CountVectorizer(tokenizer=tokenize)),
                 ('tfidf', TfidfTransformer())
             ])),
-
-#             ('starting_verb', StartingVerbExtractor())
         ])),
 
         ('clf', MultiOutputClassifier(AdaBoostClassifier()))
     ])
 
     return pipeline
+
+
+
+
 
 def multioutput_fscore(y_true,y_pred,beta=1):
     score_list = []
@@ -166,26 +177,31 @@ def multioutput_fscore(y_true,y_pred,beta=1):
 
 
 
+
+
 model = new_model_pipeline()
 parameters = {
     'features__text_pipeline__vect__ngram_range': ((1, 1), (1, 2)),
     'features__text_pipeline__vect__max_df': (0.75, 1.0),
     'features__text_pipeline__vect__max_features': (None, 5000),
     'features__text_pipeline__tfidf__use_idf': (True, False),
-#    'clf__n_estimators': [10, 100],
-#    'clf__learning_rate': [0.01, 0.1],
-#    'features__transformer_weights': (
-#        {'text_pipeline': 1, 'starting_verb': 0.5},
-#        {'text_pipeline': 0.5, 'starting_verb': 1},
-#        {'text_pipeline': 0.8, 'starting_verb': 1},
-#    )
 }
+
+
+
+
+
 scorer = make_scorer(multioutput_fscore,greater_is_better = True)
 cv = GridSearchCV(model, param_grid=parameters, scoring = scorer,verbose = 2, n_jobs = -1)
 cv.fit(X_train, y_train)
 
 
-saved = joblib.dump(cv, 'cvModel1.pkl')
 
-load_model = joblib.load('cvModel1.pkl')
+
+saved = joblib.dump(cv, 'classifier.pkl')
+
+
+
+
+load_model = joblib.load('classifier.pkl')
 load_model.predict(X_test) 
