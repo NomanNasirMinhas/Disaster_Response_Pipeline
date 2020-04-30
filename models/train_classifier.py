@@ -34,18 +34,39 @@ from scipy.stats.mstats import gmean
 from sklearn.externals import joblib
 
 
-# load data from database
-engine = create_engine('sqlite:///../data/disaster_response.db')
-df = pd.read_sql_table("messages", engine)
+def load_db(db_name, table_name):
+	'''
+	Loades Database into a Dataframe
+
+	INPUT:
+	db_name: Name of the database alongwith .db extension
+	table_name: Name of the table which is to be loaded into dataframe
+
+	OUTPUT:
+	data: Dataframe containing given table data
+	'''
+	engine = create_engine(f'sqlite:///../data/{db_name}')
+	data = pd.read_sql_table(table_name, engine)
+	return data
+
+df = load_db('disaster_response.db','messages')
 X = df['message']
 Y = df.iloc[:,4:]
 df.head()
-
 
 #Data Cleaner
 url_regex = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
 alphanumeric_regex = '[^A-Za-z0-9]+'
 def tokenize(text):
+	'''
+	Tokenizes given text
+
+	INPUT:
+	text = Textual data which is to be tokenized
+
+	OUTPUT:
+	clean_tokens =  List of tokens generated from given text
+	'''
     detected_urls = re.findall(url_regex, text)
     for url in detected_urls:
         text = text.replace(url, "urlplaceholder")
@@ -65,16 +86,26 @@ def tokenize(text):
     return clean_tokens
 
 
+def fit_pipeline():
+	'''
+	Creates a pipeline with CountVectorizer,TfidfTransformer,RandomForestClassifier parameters
 
-#Pipeline
-pipeline = Pipeline([
-        ('vect', CountVectorizer(tokenizer=tokenize)),
-        ('tfidf', TfidfTransformer()),
-        ('clf', RandomForestClassifier())
-    ])
+	INPUT:
+	None
 
-X_train, X_test, y_train, y_test = train_test_split(X, Y)
-pipeline.fit(X_train, y_train)
+	OUTPUT:
+	pipeline = fitted pipeline
+	'''
+	p_line = Pipeline([
+	        ('vect', CountVectorizer(tokenizer=tokenize)),
+	        ('tfidf', TfidfTransformer()),
+	        ('clf', RandomForestClassifier())
+	    ])
+
+	X_train, X_test, y_train, y_test = train_test_split(X, Y)
+	p_line.fit(X_train, y_train)
+
+	return p_line
 
 
 class StartingVerbExtractor(BaseEstimator, TransformerMixin):
@@ -100,6 +131,7 @@ class StartingVerbExtractor(BaseEstimator, TransformerMixin):
 
 
 def display_results(y_test, y_train):
+
     labels = np.unique(y_train)
     confusion_mat = confusion_matrix(y_test, y_train, labels=labels)
     accuracy = (y_train == y_test).mean()
@@ -110,7 +142,7 @@ def display_results(y_test, y_train):
 
 
 
-
+pipeline = fit_pipeline()
 y_pred = pipeline.predict(X_test)
 
 y_pred_pd = pd.DataFrame(y_pred, columns = y_test.columns)
@@ -159,8 +191,6 @@ def new_model_pipeline():
 
 
 
-
-
 def multioutput_fscore(y_true,y_pred,beta=1):
     score_list = []
     if isinstance(y_pred, pd.DataFrame) == True:
@@ -178,30 +208,40 @@ def multioutput_fscore(y_true,y_pred,beta=1):
 
 
 
+def fit_GridSearch():
+	model = new_model_pipeline()
+	parameters = {
+	    'features__text_pipeline__vect__ngram_range': ((1, 1), (1, 2)),
+	    'features__text_pipeline__vect__max_df': (0.75, 1.0),
+	    'features__text_pipeline__vect__max_features': (None, 5000),
+	    'features__text_pipeline__tfidf__use_idf': (True, False),
+	}
 
-model = new_model_pipeline()
-parameters = {
-    'features__text_pipeline__vect__ngram_range': ((1, 1), (1, 2)),
-    'features__text_pipeline__vect__max_df': (0.75, 1.0),
-    'features__text_pipeline__vect__max_features': (None, 5000),
-    'features__text_pipeline__tfidf__use_idf': (True, False),
-}
-
-
-
-
-
-scorer = make_scorer(multioutput_fscore,greater_is_better = True)
-cv = GridSearchCV(model, param_grid=parameters, scoring = scorer,verbose = 2, n_jobs = -1)
-cv.fit(X_train, y_train)
+	scorer = make_scorer(multioutput_fscore,greater_is_better = True)
+	cv = GridSearchCV(model, param_grid=parameters, scoring = scorer,verbose = 2, n_jobs = -1)
+	cv.fit(X_train, y_train)
+	return cv
 
 
+def save_model(model_name):
+	'''
+	Saves a trained model
+
+	INPUT:
+	model_name: Name of the model to be saved
+	'''
+	cv_model = fit_GridSearch()
+	saved = joblib.dump(cv_model, model_name)
 
 
-saved = joblib.dump(cv, 'classifier.pkl')
+def load_model(model_name):
 
+	'''
+	Loads a model
 
+	INPUT:
+	model_name: Name of the model to be Loaded
+	'''
 
-
-load_model = joblib.load('classifier.pkl')
-load_model.predict(X_test) 
+	load_model = joblib.load(model_name)
+	load_model.predict(X_test) 
